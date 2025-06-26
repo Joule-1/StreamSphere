@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "description": "streaming platform backend",
   "main": "index.js",
+  "type": "module",
   "scripts": {
-    "start": "nodemon -r dotenv/config --experimental-json-modules src/index.js"
+    "dev": "nodemon -r dotenv/config --experimental-json-modules src/index.js"
   },
   "repository": {
     "type": "git",
