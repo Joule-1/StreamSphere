@@ -80,6 +80,7 @@ userSchema.methods.generateAccessToken = function () {
         },
         process.env.ACCESS_TOKEN_EXPIRY,
         {
+            algorithm: "HS256",
             expiresIn: process.env.ACCESS_TOKEN_EXPIRY,
         }
     );
@@ -92,6 +93,7 @@ userSchema.methods.generateRefereshToken = function () {
         },
         process.env.REFRESH_TOKEN_SECRET,
         {
+            algorithm: "HS256",
             expiresIn: process.env.REFRESH_TOKEN_EXPIRY,
         }
     );
