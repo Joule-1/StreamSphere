@@ -22,7 +22,7 @@ const videoSchema = new Schema(
         },
         views: {
             type: Number,
-            default: 0,
+            default: 0, 
             min: 0,
         },
         isPublished: {
@@ -32,6 +32,7 @@ const videoSchema = new Schema(
         owner: {
             type: Schema.Types.ObjectId,
             ref: "User",
+            required: [true, "Video creator reference is required"]
         },
     },
     {
