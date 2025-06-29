@@ -378,11 +378,13 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
     const { username } = req.params;
 
     if (!username.trim()) throw new ApiError(400, "Username is missing");
+
+        
 });
 
 const getWatchHistory = asyncHandler(async (req, res) => {});
 
-return {
+export {
     registerUser,
     loginUser,
     logoutUser,
