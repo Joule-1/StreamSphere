@@ -379,10 +379,126 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
 
     if (!username.trim()) throw new ApiError(400, "Username is missing");
 
-        
+    const channel = await User.aggregate([
+        {
+            $match: {
+                username,
+            },
+        },
+        {
+            //  list of subscribers
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "channel",
+                as: "subscribers",
+            },
+        },
+        {
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "subscriber",
+                as: "subscribedTo",
+            },
+        },
+        {
+            $set: {
+                subscribersCount: {
+                    $size: "$subscribers",
+                },
+                channelsSubscribedToCount: {
+                    $size: "$subscribedTo",
+                },
+                isSubscribed: {
+                    $cond: {
+                        if: { $in: [req.user?._id, "$subscribers.subscriber"] },
+                        then: true,
+                        else: false,
+                    },
+                },
+            },
+        },
+        {
+            $project: {
+                fullname: true,
+                username: true,
+                email: true,
+                avatar: true,
+                coverImage: true,
+                subscribersCount: true,
+                channelsSubscribedToCount: true,
+                isSubscribed: true,
+            },
+        },
+    ]);
+
+    if (!channel?.length) throw new ApiError(404, "Channel does not exist");
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                channel[0],
+                "User channel fetched successfully"
+            )
+        );
 });
 
-const getWatchHistory = asyncHandler(async (req, res) => {});
+const getWatchHistory = asyncHandler(async (req, res) => {
+    const user = await User.aggregate([
+        {
+            $match: {
+                _id: new mongoose.Types.ObjectId(req.user._id),
+            },
+        },
+        {
+            $lookup: {
+                from: "videos",
+                localField: "watchHistory",
+                foreignField: "_id",
+                as: "watchHistory",
+                pipeline: [
+                    {
+                        $lookup: {
+                            from: "users",
+                            localField: "owner",
+                            foreignField: "_id",
+                            as: "owner",
+                            pipeline: [
+                                {
+                                    $project: {
+                                        fullname: true,
+                                        username: true,
+                                        avatar: true,
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                    {
+                        $set: {
+                            owner: {
+                                $first: "$owner",
+                            },
+                        },
+                    },
+                ],
+            },
+        },
+    ]);
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                user[0].watchHistory,
+                "Watch history fetched successfully"
+            )
+        );
+});
 
 export {
     registerUser,
