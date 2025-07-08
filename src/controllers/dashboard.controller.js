@@ -1,7 +1,6 @@
 import mongoose from "mongoose";
 import { Video } from "../models/video.model.js";
 import { Subscription } from "../models/subscription.model.js";
-import { Like } from "../models/like.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -9,7 +8,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 const getChannelStats = asyncHandler(async (req, res) => {
     const userId = req.user._id;
 
-    const [videoCount, totalViewsResult, subscriberCount, likeCountResult] =
+    const [videoCount, totalViewsResult, subscriberCount] =
         await Promise.all([
             Video.countDocuments({ owner: userId }),
 
@@ -25,43 +24,15 @@ const getChannelStats = asyncHandler(async (req, res) => {
 
             Subscription.countDocuments({ channel: userId }),
 
-            Like.aggregate([
-                {
-                    $match: {
-                        video: { $exists: true },
-                    },
-                },
-                {
-                    $lookup: {
-                        from: "videos",
-                        localField: "video",
-                        foreignField: "_id",
-                        as: "videoData",
-                    },
-                },
-                { $unwind: "$videoData" },
-                {
-                    $match: {
-                        "videoData.owner": new mongoose.Types.ObjectId(userId),
-                    },
-                },
-                {
-                    $group: {
-                        _id: null,
-                        totalLikes: { $sum: 1 },
-                    },
-                },
-            ]),
+            
         ]);
 
     const totalViews = totalViewsResult[0]?.totalViews || 0;
-    const totalLikes = likeCountResult[0]?.totalLikes || 0;
 
     const stats = {
         totalVideos: videoCount,
         totalViews,
         totalSubscribers: subscriberCount,
-        totalLikes,
     };
 
     res.status(200).json(new ApiResponse(200, stats, "Stats retrieved successfully"));
