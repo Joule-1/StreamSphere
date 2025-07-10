@@ -13,7 +13,7 @@ const generateAccessAndRefreshTokens = async (userId) => {
         const refreshToken = user.generateRefreshToken();
 
         user.refreshToken = refreshToken;
-        await user.save({ validateBeforeSave: false });
+        await user.save();
 
         return {
             accessToken,
@@ -58,21 +58,33 @@ const registerUser = asyncHandler(async (req, res) => {
     if (!avatarLocalPath) throw new ApiError(400, "Avatar file is required");
 
     const avatar = await uploadOnCloudinary(avatarLocalPath);
-    const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+    let coverImage;
+    if (coverImageLocalPath) {
+        coverImage = await uploadOnCloudinary(coverImageLocalPath);
+    }
 
     if (!avatar) throw new ApiError(500, "Error in uploading file");
 
     if (!avatar?.secure_url)
         throw new ApiError(500, "Failed to get avatar URL");
 
-    const user = await User.create({
-        username,
-        email,
-        fullname,
-        avatar: avatar?.secure_url,
-        coverImage: coverImage?.secure_url || "",
-        password,
-    });
+    let user;
+    try {
+        user = await User.create({
+            username,
+            email,
+            fullname,
+            avatar: avatar?.secure_url,
+            coverImage: coverImage?.secure_url || "",
+            password,
+        });
+    } catch (err) {
+        if (err.name === "ValidationError") {
+            const firstError = Object.values(err.errors)[0].message;
+            throw new ApiError(400, firstError); // e.g., "Invalid password"
+        }
+        throw new ApiError(500, "Failed to create user in DB");
+    }
 
     const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
         user._id
@@ -202,23 +214,14 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
             secure: true,
         };
 
-        const { accessToken, newRefreshToken } =
+        const { accessToken, refreshToken } =
             await generateAccessAndRefreshTokens(user._id);
 
         return res
             .status(200)
             .cookie("accessToken", accessToken, options)
-            .cookie("refreshToken", newRefreshToken, options)
-            .json(
-                new ApiResponse(
-                    200,
-                    {
-                        accessToken,
-                        refreshToken: newRefreshToken,
-                    },
-                    "Access Token Refreshed"
-                )
-            );
+            .cookie("refreshToken", refreshToken, options)
+            .json(new ApiResponse(200, {}, "Access Token Refreshed"));
     } catch (error) {
         throw new ApiError(401, error?.message || "Invalid Refresh Token");
     }
@@ -227,7 +230,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 const changeCurrentPassword = asyncHandler(async (req, res) => {
     const { oldPassword, newPassword } = req.body;
 
-    const user = User.findById(req.user?._id);
+    const user = await User.findById(req.user?._id);
 
     const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
 
@@ -235,7 +238,15 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 
     user.password = newPassword;
 
-    await user.save({ validateBeforeSave: false });
+    try {
+        await user.save();
+    } catch (err) {
+        if (err.name === "ValidationError") {
+            const firstError = Object.values(err.errors)[0].message;
+            throw new ApiError(400, firstError); // you’ll now get "Invalid password"
+        }
+        throw new ApiError(500, "Unexpected error while saving new password");
+    }
 
     return res
         .status(200)
@@ -258,7 +269,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
         {
             new: true,
         }
-    ).select("-password");
+    ).select("-password -refreshToken");
 
     return res
         .status(200)
@@ -283,7 +294,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
             const publicId = filename.split(".")[0];
 
             await cloudinary.uploader.destroy(publicId, {
-                resource_type: "auto",
+                resource_type: "image",
             });
         } catch (error) {
             console.log(
@@ -313,7 +324,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
         {
             new: true,
         }
-    ).select("-password");
+    ).select("-password -refreshToken");
 
     return res
         .status(200)
@@ -337,7 +348,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
             const publicId = filename.split(".")[0];
 
             await cloudinary.uploader.destroy(publicId, {
-                resource_type: "auto",
+                resource_type: "image",
             });
         } catch (error) {
             console.log(
@@ -367,7 +378,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         {
             new: true,
         }
-    ).select("-password");
+    ).select("-password -refreshToken");
 
     return res
         .status(200)
@@ -450,7 +461,7 @@ const getWatchHistory = asyncHandler(async (req, res) => {
     const user = await User.aggregate([
         {
             $match: {
-                _id: new mongoose.Types.ObjectId(req.user._id),
+                _id: req.user._id,
             },
         },
         {

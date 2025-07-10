@@ -1,6 +1,6 @@
 import { ApiError } from "../utils/ApiError.js";
 
-const errorHandler = (error, request, response, next) => {
+const errorHandler = (error, _, response, next) => {
     if (error instanceof ApiError) {
         return response.status(error.statusCode || 400).json({
             statusCode: error.statusCode,
