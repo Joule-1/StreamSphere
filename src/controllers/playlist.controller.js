@@ -7,9 +7,8 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 const createPlaylist = asyncHandler(async (req, res) => {
     const { name, description } = req.body;
 
-    if (!name?.trim() || !description?.trim()) {
+    if (!name?.trim() || !description?.trim()) 
         throw new ApiError(400, "Name and description are required");
-    }
 
     const playlist = await Playlist.create({
         name: name.trim(),
@@ -21,7 +20,7 @@ const createPlaylist = asyncHandler(async (req, res) => {
 });
 
 const getUserPlaylists = asyncHandler(async (req, res) => {
-    const { userId } = req.params;
+    const userId = req.user._id;
 
     if (!isValidObjectId(userId)) {
         throw new ApiError(400, "Invalid user ID");
